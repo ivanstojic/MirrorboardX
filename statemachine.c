@@ -14,10 +14,13 @@ unsigned char outsideMirror = 1;
 unsigned char outside[256];
 unsigned char inside[256];
 
-unsigned long mirrorStartTime = -1;
+unsigned long long mirrorStartTime = -1;
 unsigned long mirrorCount = 0;
 
+CGEventRef spaceDown;
 
+
+#define DEBUG 1
 
 void mark(unsigned char map[256], int keycode) {
 #ifdef DEBUG
@@ -48,6 +51,14 @@ void unmark(unsigned char map[256], int keycode) {
 
 
 
+unsigned long long GetTimeSinceBootInMilliseconds()
+{
+	UnsignedWide uw = AbsoluteToNanoseconds(UpTime());
+	return ((((unsigned long long)uw.hi)<<32)|(uw.lo))/1000000;
+}
+
+
+
 void goInside(CGEventRef event) {
 #ifdef DEBUG
 	printf(">> Going inside\n");
@@ -55,7 +66,7 @@ void goInside(CGEventRef event) {
 	
 	if (outsideMirror) {
 		outsideMirror = 0;
-		//mirrorStartTime = evt.time.tv_sec * 1000000 + evt.time.tv_usec;
+		mirrorStartTime = GetTimeSinceBootInMilliseconds();
 		mirrorCount = 0;
 		
 	} else {
@@ -79,7 +90,11 @@ void goOutside() {
 
 
 unsigned char burst(CGEventRef event) {
-	unsigned long evttime = 123; //evt.time.tv_sec * 1000000 + evt.time.tv_usec;
+	unsigned long evttime = GetTimeSinceBootInMilliseconds(); //evt.time.tv_sec * 1000000 + evt.time.tv_usec;
+	
+#ifdef DEBUG
+	printf("Delta: %d\n", evttime - mirrorStartTime);
+#endif
 	
 	if (mirrorCount == 0 && (evttime - mirrorStartTime) < MIRROR_SPACE_BURST_LIMIT) {
 		return 1;
@@ -137,35 +152,12 @@ unsigned char marked(unsigned char map[256], int keycode) {
 
 CGEventRef emitSpace(CGEventRef event) {
 	// TODO: make this actually work...
-/*	struct input_event evt;
+#ifdef DEBUG
+	printf("Emitting space\n");
+#endif
 	
-	// Space pressed
-	memset(&evt, 0, sizeof(evt));
-	gettimeofday(&evt.time, NULL);
-	
-	evt.type = EV_KEY;
-	evt.code = KEY_SPACE;
-	evt.value = 1;
-	passEvent(evt);
-	
-	evt.type = EV_SYN;
-	evt.code = SYN_REPORT;
-	evt.value = 0;
-	passEvent(evt);
-	
-	// Space released
-	memset(&evt, 0, sizeof(evt));
-	gettimeofday(&evt.time, NULL);
-	
-	evt.type = EV_KEY;
-	evt.code = KEY_SPACE;
-	evt.value = 0;
-	passEvent(evt);
-	
-	evt.type = EV_SYN;
-	evt.code = SYN_REPORT;
-	evt.value = 0;
-	passEvent(evt);  */
+	CGEventPost(kCGAnnotatedSessionEventTap, spaceDown);
+	CFRelease(spaceDown);
 	
 	return event;
 }
@@ -191,6 +183,7 @@ CGEventRef processEvent(CGEventType type,  CGEventRef event) {
 			} else {
 				if (keycode == 49) { // space
 					goInside(event);
+					spaceDown = CGEventCreateCopy(event);
 					return swallowEvent(event);
 					
 				} else {
@@ -254,9 +247,7 @@ CGEventRef processEvent(CGEventType type,  CGEventRef event) {
 					return passEvent(event);
 				}
 			}
-			
 		}
-		
 	}
 	
 	printf("Leaking events?!\n");

@@ -7,6 +7,6 @@
  *
  */
 
-#define MIRROR_SPACE_BURST_LIMIT 25000
+#define MIRROR_SPACE_BURST_LIMIT 250
 
 CGEventRef processEvent(CGEventType type,  CGEventRef event);
